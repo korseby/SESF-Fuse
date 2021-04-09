@@ -15,10 +15,10 @@ class SESF_Fuse():
     """
     def __init__(self, attention = 'cse'):
         # initialize model
-        self.device = "cuda:0"
+        self.device = "cpu"
         self.model = SESFuseNet(attention)
         self.model_path = os.path.join(os.getcwd(), "nets", "parameters", "lp+lssim_se_sf_net_times30.pkl")
-        self.model.load_state_dict(torch.load(self.model_path, map_location={'cuda:3': 'cuda:0'}))
+        self.model.load_state_dict(torch.load(self.model_path, map_location=torch.device('cpu')))
         self.model.to(self.device)
         self.model.eval()
 
@@ -274,9 +274,9 @@ class SESFuseNet(nn.Module):
         device = f1.device
         b, c, h, w = f1.shape
         r_shift_kernel = torch.FloatTensor([[0, 0, 0], [1, 0, 0], [0, 0, 0]])\
-            .cuda(device).reshape((1, 1, 3, 3)).repeat(c, 1, 1, 1)
+            .reshape((1, 1, 3, 3)).repeat(c, 1, 1, 1)
         b_shift_kernel = torch.FloatTensor([[0, 1, 0], [0, 0, 0], [0, 0, 0]])\
-            .cuda(device).reshape((1, 1, 3, 3)).repeat(c, 1, 1, 1)
+            .reshape((1, 1, 3, 3)).repeat(c, 1, 1, 1)
         f1_r_shift = f.conv2d(f1, r_shift_kernel, padding=1, groups=c)
         f1_b_shift = f.conv2d(f1, b_shift_kernel, padding=1, groups=c)
         f2_r_shift = f.conv2d(f2, r_shift_kernel, padding=1, groups=c)
@@ -286,15 +286,15 @@ class SESFuseNet(nn.Module):
         f2_grad = torch.pow((f2_r_shift - f2), 2) + torch.pow((f2_b_shift - f2), 2)
 
         kernel_size = kernel_radius * 2 + 1
-        add_kernel = torch.ones((c, 1, kernel_size, kernel_size)).float().cuda(device)
+        add_kernel = torch.ones((c, 1, kernel_size, kernel_size)).float()
         kernel_padding = kernel_size // 2
         f1_sf = torch.sum(f.conv2d(f1_grad, add_kernel, padding=kernel_padding, groups=c), dim=1)
         f2_sf = torch.sum(f.conv2d(f2_grad, add_kernel, padding=kernel_padding, groups=c), dim=1)
-        weight_zeros = torch.zeros(f1_sf.shape).cuda(device)
-        weight_ones = torch.ones(f1_sf.shape).cuda(device)
+        weight_zeros = torch.zeros(f1_sf.shape)
+        weight_ones = torch.ones(f1_sf.shape)
 
         # get decision map
-        dm_tensor = torch.where(f1_sf > f2_sf, weight_ones, weight_zeros).cuda(device)
+        dm_tensor = torch.where(f1_sf > f2_sf, weight_ones, weight_zeros)
         dm_np = dm_tensor.squeeze().cpu().numpy().astype(np.int)
         return dm_np
 
